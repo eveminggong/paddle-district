@@ -130,6 +130,9 @@ header h1 {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  position: sticky;
+  top: 64px;
+  z-index: 95;
 }
 .session-bar.ended { background: var(--bar-ended); }
 .session-bar.hidden { display: none; }
@@ -168,9 +171,9 @@ header h1 {
   border-bottom: 2px solid var(--line);
   position: sticky;
   top: 64px; /* updated by updateTabOffset() when session bar shows */
-  z-index: 90;
+  z-index: 95;
   transition: top 0.15s;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 .tab-btn {
   flex: 1;
@@ -787,7 +790,7 @@ input:focus, textarea:focus { border-color: var(--army); }
 .offline-banner{background:#7A1A1A;color:#FFA0A0;padding:7px 20px;font-size:0.78rem;font-weight:700;letter-spacing:0.03em;text-align:center;display:none;}
 .offline-banner.visible{display:block;}
 /* SHARE CARD */
-.share-card{background:var(--army);color:white;border-radius:var(--radius);padding:18px;margin-bottom:14px;box-shadow:var(--shadow);}
+.share-card{background:var(--army);color:white;border-radius:var(--radius);padding:18px;margin-bottom:14px;box-shadow:var(--shadow);position:relative;z-index:1;}
 .share-card-title{font-size:0.7rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;opacity:0.75;margin-bottom:12px;}
 
 
@@ -1237,16 +1240,15 @@ function updateSessionClock() {
   document.getElementById('sessionClock').textContent = formatDuration(elapsed);
 }
 function updateTabOffset() {
+  const header = document.querySelector('header');
   const barEl = document.getElementById('sessionBar');
-  const barH = barEl ? (barEl.classList.contains('hidden') ? 0 : barEl.offsetHeight) : 0;
+  const offlineBanner = document.getElementById('offlineBanner');
   const tabs = document.getElementById('mainTabs');
-  const headerH = 64;
-  const totalH = headerH + barH;
+  const headerH = header ? header.offsetHeight : 64;
+  const barH = barEl && !barEl.classList.contains('hidden') ? barEl.offsetHeight : 0;
+  const bannerH = offlineBanner && offlineBanner.classList.contains('visible') ? offlineBanner.offsetHeight : 0;
+  const totalH = headerH + barH + bannerH;
   if (tabs) tabs.style.top = totalH + 'px';
-  // Also update container top padding so content isn't hidden under sticky elements
-  // The tab bar itself is ~48px tall
-  const container = document.querySelector('.container');
-  if (container) container.style.paddingTop = '0px';
 }
 function startSession() {
   // Only used if app is opened directly without a dashboard-created session.
@@ -1775,6 +1777,22 @@ function confirmLeave() {
   loadState();
   renderPlayers();
   updateTabOffset();
+  window.addEventListener('resize', updateTabOffset);
+  window.addEventListener('load', updateTabOffset);
+
+  // Keep tabs sticky at correct offset — watch for header/bar size changes
+  const _stickyEls = [
+    document.querySelector('header'),
+    document.getElementById('sessionBar'),
+    document.getElementById('offlineBanner'),
+  ].filter(Boolean);
+  if (window.ResizeObserver) {
+    const _ro = new ResizeObserver(() => updateTabOffset());
+    _stickyEls.forEach(el => _ro.observe(el));
+  }
+  // Also call on load and after any DOM change
+  updateTabOffset();
+  window.addEventListener('resize', updateTabOffset);
 
   // Loading screen hard timeout — if Firebase doesn't respond in 8s show error
   setTimeout(() => {

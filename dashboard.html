@@ -161,23 +161,24 @@ window.doLogout = async () => {
 
 // ── SESSIONS ──────────────────────────────────────────────────────────────
 window.createSession = async () => {
+  if (!currentUser) { showToast('Not logged in — please refresh.'); return; }
   const name = document.getElementById('newSessionName').value.trim() || 'Open Play';
   const date = document.getElementById('newSessionDate').value || new Date().toISOString().slice(0,10);
   const sessionRef = push(ref(db, `sessions`));
   const sessionId = sessionRef.key;
-  await set(sessionRef, {
+  const sessionData = {
     name, date,
     ownerId: currentUser.uid,
     ownerName: currentUser.displayName || currentUser.email,
     createdAt: Date.now(),
     status: 'active',
-    // initialise empty game state
     players:{_empty:true}, courts:{_empty:true}, courtDefs:{_empty:true},
     matchQueue:{_empty:true}, gameHistory:{_empty:true}, queueOrder:{_empty:true},
     globalRound:0, playerIdCounter:0, courtIdCounter:0, mqIdCounter:0,
     sessionStartTime: Date.now(), sessionName: name,
     sessionEnded: false, sessionEndTime: null
-  });
+  };
+  await set(sessionRef, sessionData);
   document.getElementById('newSessionName').value = '';
   showToast('Session created!');
   window.location.href = window.location.pathname.replace(/[^/]*$/, '') + `app.html?session=${sessionId}`;
@@ -193,11 +194,6 @@ function loadSessions() {
     if (!all) { list.innerHTML = emptyState(); return; }
     try {
       const allEntries = Object.entries(all);
-      console.log('[Dashboard] Total sessions in Firebase:', allEntries.length);
-      console.log('[Dashboard] Current user UID:', currentUser.uid);
-      allEntries.forEach(([id, s]) => {
-        console.log('[Dashboard] Session', id, '| ownerId:', s.ownerId, '| match:', s.ownerId === currentUser.uid);
-      });
       const mine = allEntries
         .filter(([,s]) => s && s.ownerId === currentUser.uid)
         .sort(([,a],[,b]) => (b.createdAt||0) - (a.createdAt||0));
