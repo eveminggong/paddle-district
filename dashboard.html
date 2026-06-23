@@ -40,6 +40,8 @@ input:focus{border-color:var(--army);}
 /* Session cards */
 .session-card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--line);padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow);display:flex;align-items:center;gap:12px;cursor:pointer;transition:border-color 0.15s;}
 .session-card:hover{border-color:var(--army);}
+.session-card.session-live{border-color:var(--accent);background:var(--surface);}
+.session-card.session-live:hover{border-color:var(--army);}
 .session-icon{width:42px;height:42px;border-radius:8px;background:var(--army-pale);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;}
 .session-info{flex:1;min-width:0;}
 .session-name{font-weight:700;font-size:0.9rem;letter-spacing:0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -101,6 +103,7 @@ input:focus{border-color:var(--army);}
     <button class="btn btn-accent btn-full" onclick="createSession()">⚡ Start New Session</button>
   </div>
 
+  <div id="liveSessionBanner" style="display:none;margin-bottom:16px;"></div>
   <div class="section-title">My Sessions</div>
   <div id="sessionList">
     <div class="skeleton" style="height:70px;margin-bottom:10px;"></div>
@@ -199,6 +202,23 @@ function loadSessions() {
         .sort(([,a],[,b]) => (b.createdAt||0) - (a.createdAt||0));
       if (!mine.length) { list.innerHTML = emptyState(); return; }
       list.innerHTML = mine.map(([id, s]) => sessionCard(id, s)).join('');
+      // Show prominent resume banner for active live session
+      const liveSessions = mine.filter(([,s]) => !s.sessionEnded && s.status !== 'ended');
+      const banner = document.getElementById('liveSessionBanner');
+      if (banner && liveSessions.length > 0) {
+        const [liveId, liveS] = liveSessions[0];
+        const basePath = window.location.pathname.replace(/[^/]*$/, '');
+        banner.style.display = '';
+        banner.innerHTML = `<div style="background:var(--army);color:white;border-radius:var(--radius);padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:var(--shadow);">
+          <div>
+            <div style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;opacity:0.75;margin-bottom:3px;">Active Session</div>
+            <div style="font-size:1rem;font-weight:800;">${liveS.name||'Open Play'}</div>
+          </div>
+          <button onclick="window.location.href='${basePath}app.html?session=${liveId}'" style="background:var(--accent);color:#1C1F14;border:none;border-radius:8px;padding:10px 18px;font-family:var(--font);font-size:0.85rem;font-weight:800;cursor:pointer;white-space:nowrap;letter-spacing:0.02em;">▶ Resume</button>
+        </div>`;
+      } else if (banner) {
+        banner.style.display = 'none';
+      }
     } catch(e) {
       console.error('loadSessions error:', e);
       list.innerHTML = emptyState();
@@ -217,8 +237,6 @@ function loadSessions() {
 function sessionCard(id, s) {
   const isLive = !s.sessionEnded && s.status !== 'ended';
   const date = s.date ? new Date(s.date+'T12:00:00').toLocaleDateString('en-PH',{weekday:'short',month:'short',day:'numeric'}) : '';
-  // gameHistory can be array or Firebase object or null
-  // Filter _empty sentinel before counting
   const ghRaw = s.gameHistory;
   const gameCount = !ghRaw || ghRaw._empty ? 0
     : Array.isArray(ghRaw) ? ghRaw.length
@@ -227,26 +245,30 @@ function sessionCard(id, s) {
   const playerCount = !plRaw || plRaw._empty ? 0
     : Array.isArray(plRaw) ? plRaw.length
     : Object.keys(plRaw).filter(k=>k!=='_empty').length;
-  return `<div class="session-card" onclick="openSession('${id}')">
+  const basePath = window.location.pathname.replace(/[^/]*$/, '');
+  return `<div class="session-card ${isLive?'session-live':''}" onclick="openSession('${id}')">
     <div class="session-icon">${isLive ? '🟢' : '📋'}</div>
     <div class="session-info">
       <div class="session-name">${s.name||'Open Play'}</div>
-      <div class="session-meta">${date}${gameCount ? ` · ${gameCount} game${gameCount!==1?'s':''}` : ''}${playerCount ? ` · ${playerCount} player${playerCount!==1?'s':''}` : ''}</div>
+      <div class="session-meta">${date}${gameCount ? \` · \${gameCount} game\${gameCount!==1?'s':''}\` : ''}${playerCount ? \` · \${playerCount} player\${playerCount!==1?'s':''}\` : ''}</div>
+      ${isLive ? \`<div style="font-size:0.72rem;font-weight:700;color:var(--army);margin-top:3px;">⚡ Tap to manage</div>\` : ''}
     </div>
     <div class="session-actions" onclick="event.stopPropagation()">
-      <a href="view.html?session=${id}" target="_blank" class="btn btn-outline btn-sm">👁 View</a>
+      <a href="\${basePath}view.html?session=${id}" target="_blank" class="btn btn-outline btn-sm">👁 View</a>
       <button class="btn btn-outline btn-sm" onclick="promptDelete('${id}')">🗑</button>
     </div>
     <span class="badge ${isLive?'badge-live':'badge-ended'}">${isLive?'Live':'Ended'}</span>
   </div>`;
 }
 
+
 function emptyState() {
   return `<div class="empty-state"><div class="icon">🏸</div><p>No sessions yet.<br>Start one above to get going!</p></div>`;
 }
 
 window.openSession = (id) => {
-  window.location.href = `app.html?session=${id}`;
+  const basePath = window.location.pathname.replace(/[^/]*$/, '');
+  window.location.href = basePath + `app.html?session=${id}`;
 };
 
 window.promptDelete = (id) => {
