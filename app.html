@@ -789,6 +789,10 @@ input:focus, textarea:focus { border-color: var(--army); }
 }
 .offline-banner{background:#7A1A1A;color:#FFA0A0;padding:7px 20px;font-size:0.78rem;font-weight:700;letter-spacing:0.03em;text-align:center;display:none;}
 .offline-banner.visible{display:block;}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0;transition:background 0.2s;}
+.sync-dot.syncing{background:var(--gold);animation:syncblink 0.8s infinite;}
+.sync-dot.error{background:var(--red);}
+@keyframes syncblink{0%,100%{opacity:1;}50%{opacity:0.3;}}
 /* SHARE CARD */
 .share-card{background:var(--army);color:white;border-radius:var(--radius);padding:18px;margin-bottom:14px;box-shadow:var(--shadow);position:relative;z-index:1;}
 .share-card-title{font-size:0.7rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;opacity:0.75;margin-bottom:12px;}
@@ -1607,11 +1611,9 @@ function closeSwapModal(e) {
 }
 
 // ===== RENDER COURTS =====
-function nextUpHtml(courtSlot) {
-  // courtSlot = how many submitted/idle courts come before this one
-  // Each done/idle court gets the next queued match in sequence
+function nextUpHtml() {
   if(!matchQueue.length) return '';
-  const m = matchQueue[courtSlot] || null;
+  const m = matchQueue[0];
   if (!m) return '';
   const t1=m.team1.map(id=>getPlayer(id));
   const t2=m.team2.map(id=>getPlayer(id));
@@ -1627,7 +1629,6 @@ function nextUpHtml(courtSlot) {
 function renderCourts() {
   const el=document.getElementById('courtList');
   if(!courtDefs.length){el.innerHTML='<div class="empty-state"><div class="icon">🏸</div>No courts yet. Add one above.</div>';return;}
-  let nextUpSlot = 0; // tracks which queued match to show on each done/idle court
   const cards=courtDefs.map(def=>{
     const c=courts.find(ct=>ct.id===def.id);
     const elapsed=c&&!c.submitted&&c.startedAt?Date.now()-c.startedAt:0;
@@ -1639,12 +1640,10 @@ function renderCourts() {
       <button class="remove-court-btn" onclick="removeCourt(${def.id})">✕</button>
     </div>`;
     if(!c){
-      const wc=getWaitingQueue().length||matchQueue.length>0;
       return `<div class="court-idle-card">${header}<div class="court-body" style="text-align:center;padding:20px 16px;">
         <div style="color:var(--muted);font-size:0.85rem;font-weight:500;margin-bottom:14px;">No match assigned yet</div>
         ${matchQueue.length>0?`<button class="btn btn-accent" onclick="generateMatchForCourt(${def.id})">⚡ Generate Match</button>`:`<div style="font-size:0.78rem;color:var(--muted);font-weight:500;">Need at least 4 waiting players</div>`}
       </div></div>`;
-      nextUpSlot++;
     }
     const t1=c.team1.map(id=>getPlayer(id));
     const t2=c.team2.map(id=>getPlayer(id));
@@ -1660,7 +1659,7 @@ function renderCourts() {
           ${winner?`<span class="badge badge-green" style="margin-top:8px">🏆 ${winner}</span>`:`<span class="badge" style="background:var(--surface2);margin-top:8px;color:var(--muted);">Tie</span>`}
         </div>
         ${matchQueue.length>0?`<button class="next-match-btn" onclick="generateMatchForCourt(${def.id})">⚡ Next Match</button>`:`<div style="text-align:center;font-size:0.78rem;font-weight:500;color:var(--muted);padding:4px 0;">Not enough waiting players</div>`}
-      </div>${nextUpHtml(nextUpSlot++)}</div>`;
+      </div>${nextUpHtml()}</div>`;
     }
     const teamHtml=(tp,tk,label)=>`<div class="team"><div class="team-label">${label}</div>${tp.map((p,i)=>`
       <div class="team-player-row">
@@ -1677,7 +1676,7 @@ function renderCourts() {
         <input class="score-input" type="number" min="0" max="99" placeholder="0" id="score2_${def.id}" oninput="updateScore(${def.id})">
       </div>
       <button class="btn btn-accent btn-full" onclick="submitScore(${def.id})">Submit Score</button>
-    </div></div>`;
+    </div>${nextUpHtml()}</div>`;
   }).join('');
   el.innerHTML='<div class="court-grid-layout">'+cards+'</div>';
 }

@@ -159,7 +159,9 @@ const initials = name => name.split(' ').map(w=>w[0]).join('').toUpperCase().sli
 const normArr = val => {
   if (!val) return [];
   if (Array.isArray(val)) return val;
-  const keys = Object.keys(val);
+  if (val._empty === true) return [];
+  const keys = Object.keys(val).filter(k => k !== '_empty');
+  if (!keys.length) return [];
   if (keys.every(k => !isNaN(parseInt(k)))) return keys.sort((a,b)=>parseInt(a)-parseInt(b)).map(k=>val[k]);
   return Object.values(val);
 };
