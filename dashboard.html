@@ -191,6 +191,7 @@ window.createSession = async () => {
   showToast('Session created!');
   const _appUrl = window.location.pathname.replace(/[^/]*$/, '') + 'app.html?session=' + sessionId;
   localStorage.setItem('pd_last_session', _appUrl);
+  localStorage.setItem('pd_last_session_name', name);
   window.location.href = _appUrl;
 };
 
@@ -215,6 +216,7 @@ function renderSessionList(entries) {
       + '<button onclick="window.location.href=this.dataset.url" data-url="' + resumeUrl + '" style="background:var(--accent);color:#1C1F14;border:none;border-radius:8px;padding:10px 18px;font-family:var(--font);font-size:0.85rem;font-weight:800;cursor:pointer;white-space:nowrap;">&#9654; Resume</button>'
       + '</div>';
     localStorage.setItem('pd_last_session', resumeUrl);
+    localStorage.setItem('pd_last_session_name', liveName);
   } else if (banner) {
     banner.style.display = 'none';
   }
@@ -326,6 +328,7 @@ window.closeDeleteModal = (e) => {
 window.confirmDelete = async () => {
   if (!deleteTargetId) return;
   await remove(ref(db, `sessions/${deleteTargetId}`));
+  await remove(ref(db, `users/${currentUser.uid}/sessions/${deleteTargetId}`));
   document.getElementById('deleteOverlay').classList.add('hidden');
   deleteTargetId = null;
   showToast('Session deleted.');
@@ -345,12 +348,12 @@ function showToast(msg) {
   if (!lastUrl) return;
   const banner = document.getElementById('quickResumeBanner');
   if (!banner) return;
-  // Extract session name from URL if possible
+  const lastName = localStorage.getItem('pd_last_session_name') || 'Last Session';
   banner.style.display = '';
   banner.innerHTML = '<div style="background:var(--army);color:white;border-radius:10px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;">'
     + '<div>'
     + '<div style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;opacity:0.75;margin-bottom:3px;">Last Session</div>'
-    + '<div style="font-size:0.85rem;font-weight:700;opacity:0.9;word-break:break-all;">' + lastUrl.split('session=')[1] + '</div>'
+    + '<div style="font-size:1rem;font-weight:800;">' + lastName + '</div>'
     + '</div>'
     + '<button onclick="window.location.href=this.dataset.url" data-url="' + lastUrl + '" style="background:var(--accent);color:#1C1F14;border:none;border-radius:8px;padding:10px 18px;font-family:var(--font);font-size:0.85rem;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0;">&#9654; Resume</button>'
     + '</div>';

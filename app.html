@@ -1083,15 +1083,7 @@ function cleanForFirebase(arr) {
   return arr;
 }
 function saveState() {
-  // Only include ownerId fields if we have them — never overwrite with empty
-  const ownerFields = sessionOwnerId ? {
-    ownerId: sessionOwnerId,
-    ownerName: sessionOwnerName,
-    createdAt: sessionCreatedAt,
-    date: sessionDate,
-  } : {};
   const data = {
-    ...ownerFields,
     players:    cleanForFirebase(players),
     courts:     cleanForFirebase(courts),
     courtDefs:  cleanForFirebase(courtDefs),
@@ -1731,7 +1723,7 @@ function renderQueue() {
   }
   if(freeWaiting.length){
     html+=`<div class="mq-section-label" style="color:var(--muted);">⏳ Still Waiting</div>`;
-    html+=freeWaiting.map((p,i)=>`<div class="queue-item"><div class="queue-rank">${i+1}</div><div class="mini-avatar" style="background:${avatarColor(p.name)}">${initials(p.name)}</div><span class="queue-name">${p.name}</span></div>`).join('');
+    html+=freeWaiting.map((p,i)=>`<div class="queue-item"><div class="queue-rank">${i+1}</div><div class="mini-avatar" style="background:${avatarColor(p.name)}">${initials(p.name)}</div><span class="queue-name">${p.name}</span><span class="queue-idle${p.lastPlayedRound!==-1&&(globalRound-p.lastPlayedRound)>=3?' long':''}">${p.lastPlayedRound===-1?'Not played':globalRound-p.lastPlayedRound+'r ago'}</span></div>`).join('');
   }
   if(!playing.length&&!matchQueue.length&&!freeWaiting.length){
     html='<div class="empty-state"><div class="icon">⏳</div>No one waiting right now.</div>';
