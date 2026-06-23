@@ -136,7 +136,10 @@ const firebaseConfig = {
   appId: "1:39488978109:web:ffdddd5da4b751088c4bd4"
 };
 
-const app = initializeApp(firebaseConfig);
+// Named instance keeps this page's anonymous auth in its own localStorage key
+// ('viewer'), separate from the default app used by dashboard + app.html.
+// Without this, signInAnonymously() here overwrites the admin's Google session.
+const app = initializeApp(firebaseConfig, 'viewer');
 const db = getDatabase(app);
 const auth = getAuth(app);
 
