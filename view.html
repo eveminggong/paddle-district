@@ -508,12 +508,21 @@ function _startListen() {
   });
 }
 
-// onAuthStateChanged fires when auth is ready (initial sign-in) and again on
-// hourly token refresh — both are good moments to (re)start the listener.
-onAuthStateChanged(auth, (user) => { if (user) _startListen(); });
+// onAuthStateChanged fires on every auth state change — initial sign-in,
+// hourly token refresh, and when the admin signs out in another tab (which
+// clears the shared Firebase Auth state for this origin).
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    _startListen();
+  } else {
+    // Auth was lost (e.g. admin signed out in app.html, wiping the shared
+    // auth state). Re-authenticate anonymously so the onValue listener can
+    // resume. onAuthStateChanged will fire again once sign-in completes.
+    signInAnonymously(auth).catch(e => console.warn('Re-auth failed:', e.message));
+  }
+});
 
-// Trigger anonymous sign-in. onAuthStateChanged handles the rest.
-// If sign-in fails, attempt listening anyway (works with public-read rules).
+// Trigger the initial anonymous sign-in.
 signInAnonymously(auth).catch(e => { console.warn('Anon sign-in failed:', e.message); _startListen(); });
 </script>
 </body>
