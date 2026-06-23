@@ -124,7 +124,7 @@ header{background:var(--army);color:#fff;padding:14px 20px;display:flex;align-it
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
 import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
-import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB8LGAiW_GhGwv69e4ZFFG1XyM3qkWaAt8",
@@ -139,9 +139,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
-// Sign in anonymously — start the session listener AFTER auth resolves so
-// Firebase rules (auth != null) never cancel the onValue subscription.
-// If auth fails, try listening anyway (works if rules are public-readable).
 
 let state = null;
 let rankSort = 'wins';
@@ -485,13 +482,20 @@ if (!_SESSION_ID) {
 }
 const _sessionPath = _SESSION_ID ? `sessions/${_SESSION_ID}` : 'sessions/_invalid_';
 
+// _listening guards against duplicate onValue subscriptions.
+// Reset to false in the error callback so onAuthStateChanged can revive it.
+let _listening = false;
 function _startListen() {
+  if (_listening) return;
+  _listening = true;
   onValue(ref(db, _sessionPath), (snapshot) => {
     clearTimeout(connectTimeout);
     const data = snapshot.val();
     if (data) renderAll(data);
     else handleNull();
   }, (error) => {
+    _listening = false;   // allow onAuthStateChanged to restart the listener
+    layoutBuilt = false;  // force layout rebuild when listener is re-established
     clearTimeout(connectTimeout);
     const mc = document.getElementById('mainContent');
     if (mc) mc.innerHTML = `<div class="no-session">
@@ -503,9 +507,14 @@ function _startListen() {
     </div>`;
   });
 }
-signInAnonymously(auth)
-  .then(_startListen)
-  .catch(e => { console.warn('Anon sign-in failed:', e.message); _startListen(); });
+
+// onAuthStateChanged fires when auth is ready (initial sign-in) and again on
+// hourly token refresh — both are good moments to (re)start the listener.
+onAuthStateChanged(auth, (user) => { if (user) _startListen(); });
+
+// Trigger anonymous sign-in. onAuthStateChanged handles the rest.
+// If sign-in fails, attempt listening anyway (works with public-read rules).
+signInAnonymously(auth).catch(e => { console.warn('Anon sign-in failed:', e.message); _startListen(); });
 </script>
 </body>
 </html>
