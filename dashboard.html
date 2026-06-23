@@ -93,6 +93,7 @@ input:focus{border-color:var(--army);}
   </div>
 
   <div id="liveSessionBanner" style="display:none;margin-bottom:16px;"></div>
+  <div id="quickResumeBanner" style="display:none;margin-bottom:16px;"></div>
   <div class="section-title">My Sessions</div>
   <div id="sessionList">
     <div class="skeleton" style="height:70px;margin-bottom:10px;"></div>
@@ -183,7 +184,9 @@ window.createSession = async () => {
   await set(sessionRef, sessionData);
   document.getElementById('newSessionName').value = '';
   showToast('Session created!');
-  window.location.href = window.location.pathname.replace(/[^/]*$/, '') + `app.html?session=${sessionId}`;
+  const _appUrl = window.location.pathname.replace(/[^/]*$/, '') + 'app.html?session=' + sessionId;
+  localStorage.setItem('pd_last_session', _appUrl);
+  window.location.href = _appUrl;
 };
 
 function loadSessions() {
@@ -208,7 +211,7 @@ function loadSessions() {
         const [liveId, liveS] = liveSessions[0];
         const basePath = window.location.pathname.replace(/[^/]*$/, '');
         const resumeUrl = basePath + 'app.html?session=' + liveId;
-        const liveName = (liveS.name || 'Open Play').replace(/</g,'&lt;');
+        const liveName = (liveS.name || liveS.sessionName || 'Open Play').replace(/</g,'&lt;');
         banner.style.display = '';
         banner.innerHTML = '<div style="background:var(--army);color:white;border-radius:var(--radius);padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:var(--shadow);">'
           + '<div>'
@@ -220,6 +223,9 @@ function loadSessions() {
       } else if (banner) {
         banner.style.display = 'none';
       }
+      // Hide the quick resume banner once Firebase confirms sessions
+      const qr = document.getElementById('quickResumeBanner');
+      if (qr) qr.style.display = 'none';
     } catch(e) {
       console.error('loadSessions error:', e);
       list.innerHTML = emptyState();
@@ -276,7 +282,9 @@ function emptyState() {
 
 window.openSession = (id) => {
   const basePath = window.location.pathname.replace(/[^/]*$/, '');
-  window.location.href = basePath + `app.html?session=${id}`;
+  const url = basePath + 'app.html?session=' + id;
+  localStorage.setItem('pd_last_session', url);
+  window.location.href = url;
 };
 
 window.promptDelete = (id) => {
@@ -304,6 +312,23 @@ function showToast(msg) {
 </script>
 
 <script>
+// Show last session resume button immediately from localStorage
+(function() {
+  const lastUrl = localStorage.getItem('pd_last_session');
+  if (!lastUrl) return;
+  const banner = document.getElementById('quickResumeBanner');
+  if (!banner) return;
+  // Extract session name from URL if possible
+  banner.style.display = '';
+  banner.innerHTML = '<div style="background:var(--army);color:white;border-radius:10px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;">'
+    + '<div>'
+    + '<div style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;opacity:0.75;margin-bottom:3px;">Last Session</div>'
+    + '<div style="font-size:0.85rem;font-weight:700;opacity:0.9;word-break:break-all;">' + lastUrl.split('session=')[1] + '</div>'
+    + '</div>'
+    + '<button onclick="window.location.href=this.dataset.url" data-url="' + lastUrl + '" style="background:var(--accent);color:#1C1F14;border:none;border-radius:8px;padding:10px 18px;font-family:var(--font);font-size:0.85rem;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0;">&#9654; Resume</button>'
+    + '</div>';
+})();
+
 function toggleTheme() {
   const html = document.documentElement;
   const isDark = html.getAttribute('data-theme') === 'dark';
