@@ -118,6 +118,7 @@ header{background:var(--army);color:#fff;padding:14px 20px;display:flex;align-it
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
 import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB8LGAiW_GhGwv69e4ZFFG1XyM3qkWaAt8",
@@ -131,6 +132,9 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+const auth = getAuth(app);
+// Sign in anonymously so Firebase rules allow reading session data
+signInAnonymously(auth).catch(e => console.warn('Anon sign-in failed:', e.message));
 
 let state = null;
 let rankSort = 'wins';
@@ -440,7 +444,7 @@ onValue(ref(db, _sessionPath), (snapshot) => {
     <div class="icon">🔒</div>
     <h2>Connection Error</h2>
     <p style="font-size:0.82rem;">${error.message}<br><br>
-    If you just deployed, the Firebase domain may not be authorized yet. Try refreshing in a moment.</p>
+    Fix: Go to Firebase Console → Realtime Database → Rules and set sessions ".read" to true or "auth != null".</p>
     <button onclick="location.reload()" style="margin-top:16px;padding:10px 24px;background:var(--army);color:white;border:none;border-radius:8px;font-family:var(--font);font-size:0.85rem;font-weight:700;cursor:pointer;">↻ Refresh</button>
   </div>`;
 });
