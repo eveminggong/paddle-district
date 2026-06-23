@@ -336,7 +336,7 @@ input:focus, textarea:focus { border-color: var(--army); }
 .remove-btn:hover { color: var(--red); }
 
 /* ===== COURT CARDS ===== */
-.court-grid-layout{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:12px;margin-bottom:14px;}
+.court-grid-layout{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:14px;}
 .court-card {
   background: var(--surface);
   border-radius: var(--radius);
@@ -447,7 +447,8 @@ input:focus, textarea:focus { border-color: var(--army); }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 80px;
+  flex: 1;
+  min-width: 0;
 }
 .swap-btn {
   background: none;
@@ -1664,7 +1665,7 @@ function renderCourts() {
       <div class="team-player-row">
         <span class="mini-avatar" style="background:${avatarColor(p?.name||'?')}">${initials(p?.name||'?')}</span>
         <span class="team-player-name">${p?.name||'?'}</span>
-        <button class="swap-btn" onclick="openSwapModal(${def.id},'${tk}',${i})">⇄ swap</button>
+        <button class="swap-btn" onclick="openSwapModal(${def.id},'${tk}',${i})" title="Swap player">⇄</button>
       </div>`).join('')}</div>`;
     return `<div class="court-card">${header}<div class="court-body">
       <div class="match-teams">${teamHtml(t1,'team1','Team A')}<div class="vs-badge">VS</div>${teamHtml(t2,'team2','Team B')}</div>
