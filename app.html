@@ -1016,6 +1016,10 @@ let rankSort = 'wins';
 let swapContext = null;
 let sessionStartTime = null;
 let sessionName = '';
+let sessionOwnerId = '';
+let sessionOwnerName = '';
+let sessionCreatedAt = null;
+let sessionDate = '';
 let sessionEnded = false;
 let sessionEndTime = null;
 let sessionTimerInterval = null;
@@ -1075,7 +1079,15 @@ function cleanForFirebase(arr) {
   return arr;
 }
 function saveState() {
+  // Only include ownerId fields if we have them — never overwrite with empty
+  const ownerFields = sessionOwnerId ? {
+    ownerId: sessionOwnerId,
+    ownerName: sessionOwnerName,
+    createdAt: sessionCreatedAt,
+    date: sessionDate,
+  } : {};
   const data = {
+    ...ownerFields,
     players:    cleanForFirebase(players),
     courts:     cleanForFirebase(courts),
     courtDefs:  cleanForFirebase(courtDefs),
@@ -1084,7 +1096,7 @@ function saveState() {
     queueOrder: cleanForFirebase(queueOrder),
     globalRound, playerIdCounter, courtIdCounter, mqIdCounter,
     sessionStartTime, sessionName,
-    name: sessionName,        // keep 'name' in sync — dashboard reads this field
+    name: sessionName,
     sessionEnded, sessionEndTime,
     status: sessionEnded ? 'ended' : 'active'
   };
@@ -1154,10 +1166,14 @@ window._fbApplyRemote = function(s) {
   courtIdCounter   = s.courtIdCounter   || 0;
   mqIdCounter      = s.mqIdCounter      || 0;
   queueOrder       = normArr(s.queueOrder);
-  sessionStartTime = s.sessionStartTime || null;
-  sessionName      = s.sessionName || s.name || '';
-  sessionEnded     = s.sessionEnded     || false;
-  sessionEndTime   = s.sessionEndTime   || null;
+  sessionStartTime  = s.sessionStartTime  || null;
+  sessionName       = s.sessionName || s.name || '';
+  sessionOwnerId    = s.ownerId     || '';
+  sessionOwnerName  = s.ownerName   || '';
+  sessionCreatedAt  = s.createdAt   || null;
+  sessionDate       = s.date        || '';
+  sessionEnded      = s.sessionEnded      || false;
+  sessionEndTime    = s.sessionEndTime    || null;
 
   applySessionUI();
   // Rebuild match queue from current state (removes stale/absent players)
@@ -1813,7 +1829,7 @@ function confirmLeave() {
 <!-- Firebase Session Sync -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-import { getDatabase, ref, set, update, onValue } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+import { getDatabase, ref, set, update, onValue, get } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -1840,12 +1856,25 @@ const _SESSION_REF = ref(_db, `sessions/${_SESSION_ID}`);
 // Auth guard — wait for full resolution, add grace period for slow connections
 let _authUser = undefined;
 onAuthStateChanged(_auth, user => {
-  // console.log('[PD] Auth state');
   _authUser = user;
-  if (!user) {
+  if (user) {
+    // Register this session under user profile — device-independent recovery
+    if (_SESSION_ID) {
+      const userSessionRef = ref(_db, `users/${user.uid}/sessions/${_SESSION_ID}`);
+      const lastSessionRef = ref(_db, `users/${user.uid}/lastSession`);
+      // Read session name from Firebase first, then register
+      get(ref(_db, `sessions/${_SESSION_ID}/name`)).then(snap => {
+        const sName = snap.val() || 'Open Play';
+        update(userSessionRef, { name: sName, lastOpened: Date.now() });
+        set(lastSessionRef, _SESSION_ID);
+      }).catch(() => {
+        // Still register even if we can't read the name
+        set(lastSessionRef, _SESSION_ID);
+      });
+    }
+  } else {
     setTimeout(() => {
       if (!_authUser) {
-
         window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
       }
     }, 3000);

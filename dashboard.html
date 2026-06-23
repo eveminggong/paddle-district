@@ -118,7 +118,7 @@ input:focus{border-color:var(--army);}
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js';
-import { getDatabase, ref, push, set, get, remove, onValue } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js';
+import { getDatabase, ref, push, set, get, update, remove, onValue } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyB8LGAiW_GhGwv69e4ZFFG1XyM3qkWaAt8",
@@ -182,6 +182,11 @@ window.createSession = async () => {
     sessionEnded: false, sessionEndTime: null
   };
   await set(sessionRef, sessionData);
+  // Register session under user profile for device-independent recovery
+  await update(ref(db, `users/${currentUser.uid}/sessions/${sessionId}`), {
+    name: name, lastOpened: Date.now()
+  });
+  await set(ref(db, `users/${currentUser.uid}/lastSession`), sessionId);
   document.getElementById('newSessionName').value = '';
   showToast('Session created!');
   const _appUrl = window.location.pathname.replace(/[^/]*$/, '') + 'app.html?session=' + sessionId;
@@ -189,55 +194,77 @@ window.createSession = async () => {
   window.location.href = _appUrl;
 };
 
+function renderSessionList(entries) {
+  const list = document.getElementById('sessionList');
+  if (!entries.length) { list.innerHTML = emptyState(); return; }
+  const sorted = [...entries].sort(([,a],[,b]) => (b.createdAt||0) - (a.createdAt||0));
+  list.innerHTML = sorted.map(([id, s]) => sessionCard(id, s)).join('');
+  // Live session resume banner
+  const live = sorted.find(([,s]) => !s.sessionEnded && s.status !== 'ended');
+  const banner = document.getElementById('liveSessionBanner');
+  const qr = document.getElementById('quickResumeBanner');
+  if (banner && live) {
+    const [liveId, liveS] = live;
+    const basePath = window.location.pathname.replace(/[^/]*$/, '');
+    const resumeUrl = basePath + 'app.html?session=' + liveId;
+    const liveName = (liveS.name || liveS.sessionName || 'Open Play').replace(/</g,'&lt;');
+    banner.style.display = '';
+    banner.innerHTML = '<div style="background:var(--army);color:white;border-radius:var(--radius);padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:var(--shadow);">'
+      + '<div><div style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;opacity:0.75;margin-bottom:3px;">Active Session</div>'
+      + '<div style="font-size:1rem;font-weight:800;">' + liveName + '</div></div>'
+      + '<button onclick="window.location.href=this.dataset.url" data-url="' + resumeUrl + '" style="background:var(--accent);color:#1C1F14;border:none;border-radius:8px;padding:10px 18px;font-family:var(--font);font-size:0.85rem;font-weight:800;cursor:pointer;white-space:nowrap;">&#9654; Resume</button>'
+      + '</div>';
+    localStorage.setItem('pd_last_session', resumeUrl);
+  } else if (banner) {
+    banner.style.display = 'none';
+  }
+  if (qr) qr.style.display = 'none';
+}
+
 function loadSessions() {
-  // Fetch all sessions and filter client-side
-  // (avoids needing .indexOn rule in Firebase)
-  const sessionsRef = ref(db, 'sessions');
-  onValue(sessionsRef, snap => {
-    const list = document.getElementById('sessionList');
+  const list = document.getElementById('sessionList');
+
+  // Strategy 1: Read session IDs from user profile (device-independent)
+  const userSessionsRef = ref(db, `users/${currentUser.uid}/sessions`);
+  onValue(userSessionsRef, async snap => {
+    const userSessions = snap.val();
+    if (!userSessions) {
+      // Fallback: scan all sessions for ownerId match
+      loadSessionsByOwner();
+      return;
+    }
+    // Fetch full session data for each registered session ID
+    const ids = Object.keys(userSessions);
+    const results = await Promise.all(ids.map(id =>
+      get(ref(db, `sessions/${id}`)).then(s => s.exists() ? [id, s.val()] : null).catch(() => null)
+    ));
+    const entries = results.filter(Boolean).filter(([,s]) => s && s.ownerId === currentUser.uid);
+    if (!entries.length) {
+      loadSessionsByOwner(); // fallback
+      return;
+    }
+    renderSessionList(entries);
+  }, () => loadSessionsByOwner());
+}
+
+function loadSessionsByOwner() {
+  // Fallback: read all sessions, filter by ownerId
+  const list = document.getElementById('sessionList');
+  get(ref(db, 'sessions')).then(snap => {
     const all = snap.val();
     if (!all) { list.innerHTML = emptyState(); return; }
-    try {
-      const allEntries = Object.entries(all);
-      const mine = allEntries
-        .filter(([,s]) => s && s.ownerId === currentUser.uid)
-        .sort(([,a],[,b]) => (b.createdAt||0) - (a.createdAt||0));
-      if (!mine.length) { list.innerHTML = emptyState(); return; }
-      list.innerHTML = mine.map(([id, s]) => sessionCard(id, s)).join('');
-      // Show prominent resume banner for active live session
-      const liveSessions = mine.filter(([,s]) => !s.sessionEnded && s.status !== 'ended');
-      const banner = document.getElementById('liveSessionBanner');
-      if (banner && liveSessions.length > 0) {
-        const [liveId, liveS] = liveSessions[0];
-        const basePath = window.location.pathname.replace(/[^/]*$/, '');
-        const resumeUrl = basePath + 'app.html?session=' + liveId;
-        const liveName = (liveS.name || liveS.sessionName || 'Open Play').replace(/</g,'&lt;');
-        banner.style.display = '';
-        banner.innerHTML = '<div style="background:var(--army);color:white;border-radius:var(--radius);padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:var(--shadow);">'
-          + '<div>'
-          + '<div style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;opacity:0.75;margin-bottom:3px;">Active Session</div>'
-          + '<div style="font-size:1rem;font-weight:800;">' + liveName + '</div>'
-          + '</div>'
-          + '<button onclick="window.location.href=this.dataset.url" data-url="' + resumeUrl + '" style="background:var(--accent);color:#1C1F14;border:none;border-radius:8px;padding:10px 18px;font-family:var(--font);font-size:0.85rem;font-weight:800;cursor:pointer;white-space:nowrap;">&#9654; Resume</button>'
-          + '</div>';
-      } else if (banner) {
-        banner.style.display = 'none';
-      }
-      // Hide the quick resume banner once Firebase confirms sessions
-      const qr = document.getElementById('quickResumeBanner');
-      if (qr) qr.style.display = 'none';
-    } catch(e) {
-      console.error('loadSessions error:', e);
-      list.innerHTML = emptyState();
-    }
-  }, err => {
-    // Permission denied — rules not updated yet
-    const list = document.getElementById('sessionList');
-    list.innerHTML = `<div class="empty-state">
-      <div class="icon">🔒</div>
-      <p style="color:var(--red);font-weight:600;">Permission denied.<br>
-      <span style="font-size:0.78rem;font-weight:500;color:var(--muted);">Update your Firebase rules to allow authenticated reads on sessions.<br>See setup instructions.</span></p>
-    </div>`;
+    const entries = Object.entries(all).filter(([,s]) => s && s.ownerId === currentUser.uid);
+    if (!entries.length) { list.innerHTML = emptyState(); return; }
+    renderSessionList(entries);
+    // Register found sessions under user profile for future device-independent lookup
+    entries.forEach(([id, s]) => {
+      update(ref(db, `users/${currentUser.uid}/sessions/${id}`), {
+        name: s.name || s.sessionName || 'Open Play',
+        lastOpened: Date.now()
+      });
+    });
+  }).catch(err => {
+    list.innerHTML = `<div class="empty-state"><div class="icon">🔒</div><p style="color:var(--red);font-weight:600;">Permission denied.<br><span style="font-size:0.78rem;font-weight:500;color:var(--muted);">Check your Firebase rules.</span></p></div>`;
   });
 }
 
