@@ -892,8 +892,8 @@ input:focus, textarea:focus { border-color: var(--army); }
     <div class="share-card" id="shareCard" style="display:none;">
       <div class="share-card-title">Share with Players</div>
       <div style="display:flex;justify-content:center;margin-bottom:10px;">
-        <div style="background:white;border-radius:10px;padding:8px;line-height:0;">
-          <canvas id="qrCanvas"></canvas>
+        <div style="background:white;border-radius:10px;padding:8px;line-height:0;display:inline-block;">
+          <div id="qrContainer"></div>
         </div>
       </div>
       <div style="text-align:center;font-size:0.68rem;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;opacity:0.65;margin-bottom:12px;">Scan to view live</div>
@@ -1180,8 +1180,8 @@ window._fbApplyRemote = function(s) {
   applySessionUI();
   // Rebuild match queue from current state (removes stale/absent players)
   rebuildMatchQueue();
-  // Always restart timer interval if there are active courts
-  const hasActiveCourts = courts.some(c=>!c.submitted && c.startedAt);
+  // Restart court timer only when session is still active
+  const hasActiveCourts = !sessionEnded && courts.some(c=>!c.submitted && c.startedAt);
   if (hasActiveCourts) {
     if (!courtTimerInterval) courtTimerInterval = setInterval(tickCourtTimers, 1000);
   } else if (courtTimerInterval && !hasActiveCourts) {
@@ -1295,7 +1295,8 @@ function confirmEndSession() {
   sessionEnded = true; sessionEndTime = Date.now();
   clearInterval(courtTimerInterval); courtTimerInterval = null;
   applySessionUI();
-  saveState(); // saveState already includes status:'ended' when sessionEnded=true
+  if (window._fbForceImmediate) window._fbForceImmediate(); // bypass 80ms debounce — can't let navigation cancel this write
+  saveState();
   document.getElementById('endOverlay').classList.add('hidden');
   showToast('Session ended — tap "New Session" to start another.', 3500);
 }
@@ -1881,11 +1882,20 @@ onAuthStateChanged(_auth, user => {
 // Debounced write
 let _writeTimer = null;
 let _lastWrite = 0;
+let _forceImmediate = false;
+window._fbForceImmediate = () => { _forceImmediate = true; };
 window._fbWrite = function(data) {
   if (data === null) { window._fbSet(null); return; } // null = clear session
   const dot = document.getElementById('syncDot');
   if (dot) dot.className = 'sync-dot syncing';
   clearTimeout(_writeTimer);
+  if (_forceImmediate) {
+    _forceImmediate = false;
+    update(_SESSION_REF, data)
+      .then(() => { if(dot) dot.className = 'sync-dot'; })
+      .catch(err => { console.error('Firebase write error:', err.code, err.message); if(dot) dot.className = 'sync-dot error'; });
+    return;
+  }
   _writeTimer = setTimeout(() => {
     // update() merges — preserves ownerId, name, date, createdAt set by dashboard
     update(_SESSION_REF, data)
@@ -1981,8 +1991,9 @@ console.log('Firebase session:', _SESSION_ID);
 
 
 <!-- QR Code library -->
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
+let _qrInstance = null;
 function showShareCard(url) {
   const card = document.getElementById('shareCard');
   const display = document.getElementById('shareLinkDisplay');
@@ -1992,12 +2003,20 @@ function showShareCard(url) {
   _genQR(url);
 }
 function _genQR(url) {
-  const canvas = document.getElementById('qrCanvas');
-  if (!canvas) return;
-  if (window.QRCode) {
-    QRCode.toCanvas(canvas, url, { width: 160, margin: 1, color: { dark: '#1C1F14', light: '#FFFFFF' } });
+  if (!window.QRCode) { setTimeout(() => _genQR(url), 300); return; }
+  const el = document.getElementById('qrContainer');
+  if (!el) return;
+  if (_qrInstance) {
+    try { _qrInstance.makeCode(url); } catch(e) {
+      _qrInstance = null; el.innerHTML = ''; _genQR(url);
+    }
   } else {
-    setTimeout(() => _genQR(url), 300);
+    el.innerHTML = '';
+    _qrInstance = new QRCode(el, {
+      text: url, width: 160, height: 160,
+      colorDark: '#1C1F14', colorLight: '#FFFFFF',
+      correctLevel: QRCode.CorrectLevel.M
+    });
   }
 }
 </script>
