@@ -70,19 +70,8 @@ input:focus{border-color:var(--army);}
 </head>
 <body>
 <header>
-  <div class="logo-circle">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="28" height="28">
-      <ellipse cx="18" cy="13" rx="9" ry="10.5" fill="white"/>
-      <circle cx="15" cy="10" r="1.4" fill="#8FB339"/>
-      <circle cx="21" cy="10" r="1.4" fill="#8FB339"/>
-      <circle cx="15" cy="14" r="1.4" fill="#8FB339"/>
-      <circle cx="21" cy="14" r="1.4" fill="#8FB339"/>
-      <circle cx="18" cy="12" r="1.4" fill="#8FB339"/>
-      <circle cx="18" cy="17" r="1.4" fill="#8FB339"/>
-      <rect x="15.5" y="21.5" width="5" height="9" rx="2.5" fill="white"/>
-      <line x1="15.5" y1="24.5" x2="20.5" y2="24.5" stroke="#8FB339" stroke-width="0.8"/>
-      <line x1="15.5" y1="27" x2="20.5" y2="27" stroke="#8FB339" stroke-width="0.8"/>
-    </svg>
+  <div class="logo-circle" style="padding:0;overflow:hidden;background:transparent;">
+    <img src="logo.png" alt="Paddle District" style="width:34px;height:34px;object-fit:contain;border-radius:50%;" onerror="this.style.display='none'">
   </div>
   <h1>Paddle District</h1>
   <div class="user-pill">
@@ -147,14 +136,24 @@ const db = getDatabase(app);
 let currentUser = null;
 let deleteTargetId = null;
 
-// Auth guard
+// Auth guard — wait for full resolution before redirecting
+let _authResolved = false;
 onAuthStateChanged(auth, user => {
-  if (!user) { window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html'; return; }
-  currentUser = user;
-  const initials = (user.displayName||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-  document.getElementById('userAvatar').textContent = initials;
-  document.getElementById('userName').textContent = user.displayName || user.email;
-  loadSessions();
+  if (user) {
+    _authResolved = true;
+    currentUser = user;
+    const initials = (user.displayName||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    document.getElementById('userAvatar').textContent = initials;
+    document.getElementById('userName').textContent = user.displayName || user.email;
+    loadSessions();
+  } else {
+    // Give Firebase 3 seconds to resolve before redirecting to login
+    setTimeout(() => {
+      if (!_authResolved) {
+        window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'index.html';
+      }
+    }, 3000);
+  }
 });
 
 window.doLogout = async () => {
@@ -216,7 +215,7 @@ function loadSessions() {
           + '<div style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;opacity:0.75;margin-bottom:3px;">Active Session</div>'
           + '<div style="font-size:1rem;font-weight:800;">' + liveName + '</div>'
           + '</div>'
-          + '<button onclick="window.location.href='' + resumeUrl + ''" style="background:var(--accent);color:#1C1F14;border:none;border-radius:8px;padding:10px 18px;font-family:var(--font);font-size:0.85rem;font-weight:800;cursor:pointer;white-space:nowrap;">&#9654; Resume</button>'
+          + '<button onclick="window.location.href=this.dataset.url" data-url="' + resumeUrl + '" style="background:var(--accent);color:#1C1F14;border:none;border-radius:8px;padding:10px 18px;font-family:var(--font);font-size:0.85rem;font-weight:800;cursor:pointer;white-space:nowrap;">&#9654; Resume</button>'
           + '</div>';
       } else if (banner) {
         banner.style.display = 'none';
