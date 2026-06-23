@@ -411,17 +411,16 @@ input:focus, textarea:focus { border-color: var(--army); }
 .court-round { font-size: 0.72rem; font-weight: 600; opacity: 0.72; letter-spacing: 0.04em; }
 .court-body { padding: 16px; }
 .match-teams {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: 10px;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
   margin-bottom: 16px;
 }
 .team {
   background: var(--surface2);
   border-radius: 8px;
-  padding: 12px 10px;
-  text-align: center;
+  padding: 10px 12px;
 }
 .team-label {
   font-size: 0.65rem;
@@ -434,21 +433,19 @@ input:focus, textarea:focus { border-color: var(--army); }
 .team-player-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  justify-content: center;
+  gap: 8px;
+  justify-content: flex-start;
   margin-bottom: 5px;
 }
 .team-player-row:last-child { margin-bottom: 0; }
 .team-player-name {
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   flex: 1;
   min-width: 0;
+  word-break: break-word;
 }
 .swap-btn {
   background: none;
@@ -466,11 +463,12 @@ input:focus, textarea:focus { border-color: var(--army); }
 }
 .swap-btn:hover { border-color: var(--gold); color: var(--gold); background: rgba(212,160,23,0.08); }
 .vs-badge {
-  font-size: 0.85rem;
+  font-size: 0.72rem;
   font-weight: 900;
   color: var(--muted);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   text-align: center;
+  padding: 2px 0;
 }
 .score-section-label {
   font-size: 0.7rem;
