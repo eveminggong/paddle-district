@@ -1307,7 +1307,9 @@ function confirmEndSession() {
 }
 function newSession() {
   if (!confirm('Go back to Dashboard to start a new session?')) return;
-  window.location.href = 'dashboard.html';
+  localStorage.removeItem('pd_last_session');
+  localStorage.removeItem('pd_last_session_name');
+  window.location.href = window.location.pathname.replace(/[^/]*$/, '') + 'dashboard.html';
 }
 function continueSession() {
   if (!confirm('Continue this session? The view link will go live again for players.')) return;

@@ -139,8 +139,9 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
-// Sign in anonymously so Firebase rules allow reading session data
-signInAnonymously(auth).catch(e => console.warn('Anon sign-in failed:', e.message));
+// Sign in anonymously — start the session listener AFTER auth resolves so
+// Firebase rules (auth != null) never cancel the onValue subscription.
+// If auth fails, try listening anyway (works if rules are public-readable).
 
 let state = null;
 let rankSort = 'wins';
@@ -484,22 +485,27 @@ if (!_SESSION_ID) {
 }
 const _sessionPath = _SESSION_ID ? `sessions/${_SESSION_ID}` : 'sessions/_invalid_';
 
-onValue(ref(db, _sessionPath), (snapshot) => {
-  clearTimeout(connectTimeout);
-  const data = snapshot.val();
-  if (data) renderAll(data);
-  else handleNull();
-}, (error) => {
-  clearTimeout(connectTimeout);
-  const mc = document.getElementById('mainContent');
-  if (mc) mc.innerHTML = `<div class="no-session">
-    <div class="icon">🔒</div>
-    <h2>Connection Error</h2>
-    <p style="font-size:0.82rem;">${error.message}<br><br>
-    Fix: Go to Firebase Console → Realtime Database → Rules and set sessions ".read" to true or "auth != null".</p>
-    <button onclick="location.reload()" style="margin-top:16px;padding:10px 24px;background:var(--army);color:white;border:none;border-radius:8px;font-family:var(--font);font-size:0.85rem;font-weight:700;cursor:pointer;">↻ Refresh</button>
-  </div>`;
-});
+function _startListen() {
+  onValue(ref(db, _sessionPath), (snapshot) => {
+    clearTimeout(connectTimeout);
+    const data = snapshot.val();
+    if (data) renderAll(data);
+    else handleNull();
+  }, (error) => {
+    clearTimeout(connectTimeout);
+    const mc = document.getElementById('mainContent');
+    if (mc) mc.innerHTML = `<div class="no-session">
+      <div class="icon">🔒</div>
+      <h2>Connection Error</h2>
+      <p style="font-size:0.82rem;">${error.message}<br><br>
+      Fix: Go to Firebase Console → Realtime Database → Rules and set sessions ".read" to true or "auth != null".</p>
+      <button onclick="location.reload()" style="margin-top:16px;padding:10px 24px;background:var(--army);color:white;border:none;border-radius:8px;font-family:var(--font);font-size:0.85rem;font-weight:700;cursor:pointer;">↻ Refresh</button>
+    </div>`;
+  });
+}
+signInAnonymously(auth)
+  .then(_startListen)
+  .catch(e => { console.warn('Anon sign-in failed:', e.message); _startListen(); });
 </script>
 </body>
 </html>
