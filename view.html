@@ -309,8 +309,11 @@ function showEndedState(s) {
         <button class="sort-pill-v" onclick="setSort('ptpct')">By Pt%</button>
       </div>
       <div id="vRankings"></div>
-    </div>`;
+    </div>
+    <div class="section-header">📋 Match History</div>
+    <div class="card-v" id="vHistory"></div>`;
   renderRankings(s);
+  renderHistory(s);
   // Sync sort pill active state — pills always render as "wins" after innerHTML swap
   if (rankSort !== 'wins') {
     document.querySelectorAll('.sort-pill-v').forEach(p => p.classList.remove('active'));
