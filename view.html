@@ -27,7 +27,6 @@ header{background:var(--army);color:#fff;padding:14px 20px;display:flex;align-it
 .view-qr.open .view-qr-panel{display:flex;}
 .view-qr-panel .qr-box{background:#fff;border-radius:6px;padding:6px;line-height:0;}
 .view-qr-label{color:var(--muted);font-size:0.55rem;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;text-align:center;max-width:128px;line-height:1.3;}
-@media(max-width:720px){.view-qr{display:none!important;}}
 .container{max-width:1080px;margin:0 auto;padding:0 16px;}
 .section-header{font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);margin:20px 0 10px;}
 .court-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,520px));gap:14px;justify-content:center;}
@@ -205,6 +204,12 @@ const normArr = val => {
 const normCourts = val => normArr(val).map(c=>({...c,team1:normArr(c.team1),team2:normArr(c.team2)}));
 const normMQ = val => normArr(val).map(m=>({...m,team1:normArr(m.team1),team2:normArr(m.team2)}));
 const normGH = val => normArr(val).map(g=>({...g,team1:normArr(g.team1),team2:normArr(g.team2)}));
+const formatGameDuration = ms => {
+  if(ms==null || ms<0) return '';
+  const s=Math.floor(ms/1000), m=Math.floor(s/60), sec=s%60;
+  if(m>=60){ const h=Math.floor(m/60); return `${h}:${String(m%60).padStart(2,'0')}:${String(sec).padStart(2,'0')}`; }
+  return `${m}:${String(sec).padStart(2,'0')}`;
+};
 const avatarColor = name => {
   const colors=['#4A5C2F','#2E5E6E','#5C2F5E','#8B4020','#2F5E4A','#5E4A2F'];
   let hash=0; for(let c of name) hash=(hash*31+c.charCodeAt(0))%colors.length;
@@ -527,9 +532,10 @@ function renderHistory(s) {
   el.innerHTML=games.map(g=>{
     const t1=(g.team1||[]).join(' & '), t2=(g.team2||[]).join(' & ');
     const winner=g.score1>g.score2?t1:g.score2>g.score1?t2:null;
+    const gd=formatGameDuration(g.duration);
     return `<div class="history-view-item">
       <div class="history-view-top">
-        <span class="history-view-meta">Rd ${g.round} · ${g.courtName||'Court '+g.court}</span>
+        <span class="history-view-meta">Rd ${g.round} · ${g.courtName||'Court '+g.court}${gd?` · ⏱ ${gd}`:''}</span>
         <span class="history-view-score">${g.score1} – ${g.score2}</span>
       </div>
       <div class="history-view-players">${t1} vs ${t2}</div>
