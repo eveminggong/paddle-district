@@ -1056,6 +1056,22 @@ input:focus, textarea:focus { border-color: var(--army); }
     </div>
 
     <div class="card">
+      <div class="card-title">Player check-in</div>
+      <div style="display:flex;justify-content:center;margin-bottom:10px;">
+        <div style="background:white;border-radius:10px;padding:8px;line-height:0;display:inline-block;">
+          <div id="checkinQr"></div>
+        </div>
+      </div>
+      <div class="share-link-label">Check-in Link</div>
+      <div class="share-link-box" id="checkinLinkDisplay" onclick="copyCheckinLink()">Generating...</div>
+      <div class="share-btns" style="margin-bottom:10px;">
+        <button class="share-btn" onclick="copyCheckinLink()">📋 Copy Link</button>
+      </div>
+      <button class="btn btn-full btn-primary" id="checkinToggleBtn" onclick="toggleCheckinOpen()">Check-in: Open</button>
+      <div id="checkinStatus" style="text-align:center;font-size:0.78rem;font-weight:600;color:var(--muted);margin-top:8px;">Players can check in now.</div>
+    </div>
+
+    <div class="card">
       <div class="card-title">Add Players</div>
       <textarea id="playerNameInput" placeholder="Enter one name per line:&#10;Eve&#10;Jude&#10;Alysson&#10;Jan" rows="5" style="resize:vertical;margin-bottom:10px;"></textarea>
       <button class="btn btn-primary btn-full" onclick="addPlayer()">Add Players</button>
@@ -1249,6 +1265,7 @@ let playerIdCounter = 0;
 let courtIdCounter = 0;
 let mqIdCounter = 0;
 let queueOrder = [];
+let checkinOpen = true;
 let rankSort = 'wins';
 let swapContext = null;
 let sessionStartTime = null;
@@ -1315,6 +1332,52 @@ function cleanForFirebase(arr) {
   if (arr.length === 0) return {_empty: true}; // preserve empty arrays
   return arr;
 }
+function _importCheckin(key, entry) {
+  if (!entry) { window._removeCheckin && window._removeCheckin(key); return; }
+  const name = (typeof entry.name === 'string') ? entry.name.trim() : '';
+  if (!name) { window._removeCheckin && window._removeCheckin(key); return; }
+  const ex = players.find(p => p && typeof p.name === 'string' && p.name.toLowerCase() === name.toLowerCase());
+  if (ex) {
+    ex.present = true;
+    if (!queueOrder.includes(ex.id)) queueOrder.push(ex.id);
+    rebuildMatchQueue(); renderPlayers(); renderQueue(); saveState();
+    showToast(`${ex.name} marked here.`);
+  } else {
+    const p = { id: ++playerIdCounter, name, present: true, gamesPlayed: 0, wins: 0, losses: 0, points: 0, pointsAgainst: 0, lastPlayedRound: -1 };
+    players.push(p);
+    if (!queueOrder.includes(p.id)) queueOrder.push(p.id);
+    rebuildMatchQueue(); renderPlayers(); renderQueue(); saveState();
+    showToast(`${p.name} checked in.`);
+  }
+  window._removeCheckin && window._removeCheckin(key);
+}
+window._importCheckin = _importCheckin;
+function toggleCheckinOpen() {
+  checkinOpen = !checkinOpen;
+  renderCheckinPanel();
+  saveState();
+  showToast(checkinOpen ? 'Check-in opened.' : 'Check-in closed.');
+}
+function copyCheckinLink() {
+  const url = window._checkinLink ? window._checkinLink() : '';
+  if (!url) return;
+  navigator.clipboard.writeText(url).then(() => showToast('Check-in link copied!')).catch(() => prompt('Copy this check-in link:', url));
+}
+function renderCheckinPanel() {
+  const url = window._checkinLink ? window._checkinLink() : '';
+  const linkEl = document.getElementById('checkinLinkDisplay');
+  if (linkEl) linkEl.textContent = url || 'Generating...';
+  const btn = document.getElementById('checkinToggleBtn');
+  if (btn) { btn.textContent = checkinOpen ? 'Check-in: Open' : 'Check-in: Closed'; btn.className = 'btn btn-full ' + (checkinOpen ? 'btn-primary' : 'btn-outline'); }
+  const st = document.getElementById('checkinStatus');
+  if (st) st.textContent = checkinOpen ? 'Players can check in now.' : 'Check-in is closed.';
+  const el = document.getElementById('checkinQr');
+  if (url && el && window.QRCode) {
+    if (el.dataset.qrUrl !== url) { el.innerHTML = ''; new QRCode(el, { text: url, width: 132, height: 132, colorDark: '#1C1F14', colorLight: '#FFFFFF', correctLevel: QRCode.CorrectLevel.M }); el.dataset.qrUrl = url; }
+  } else if (url && el && !window.QRCode) {
+    setTimeout(renderCheckinPanel, 300);
+  }
+}
 function saveState() {
   const data = {
     players:    cleanForFirebase(players),
@@ -1327,6 +1390,7 @@ function saveState() {
     sessionStartTime, sessionName,
     name: sessionName,
     sessionEnded, sessionEndTime,
+    checkinOpen,
     status: sessionEnded ? 'ended' : 'active'
   };
   if (window._fbWrite) {
@@ -1405,6 +1469,7 @@ window._fbApplyRemote = function(s) {
   sessionDate       = s.date        || '';
   sessionEnded      = s.sessionEnded      || false;
   sessionEndTime    = s.sessionEndTime    || null;
+  checkinOpen       = (s.checkinOpen !== false);
 
   applySessionUI();
   // Rebuild match queue from current state (removes stale/absent players)
@@ -1646,6 +1711,7 @@ function markAll(val) {
   rebuildMatchQueue(); renderPlayers(); renderQueue(); saveState();
 }
 function renderPlayers() {
+  renderCheckinPanel();
   const list=document.getElementById('playerList');
   const search=(document.getElementById('attendanceSearch')?.value||'').toLowerCase().trim();
   const filtered=players.filter(p=>p.name.toLowerCase().includes(search));
@@ -2210,7 +2276,7 @@ function confirmLeave() {
 <!-- Firebase Session Sync -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-import { getDatabase, ref, set, update, onValue, get } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+import { getDatabase, ref, set, update, onValue, get, push, onChildAdded, remove } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -2350,6 +2416,21 @@ window.copyViewLink = function() {
 window._getViewLink = function() {
   return `${window.location.origin}${_basePath()}view.html?session=${_SESSION_ID}`;
 };
+window._checkinLink = function() {
+  return `${window.location.origin}${_basePath()}checkin.html?session=${_SESSION_ID}`;
+};
+window._removeCheckin = function(key) {
+  try { remove(ref(_db, `sessions/${_SESSION_ID}/checkins/${key}`)); } catch(e) {}
+};
+let _checkinAttached = false;
+function _attachCheckinListener() {
+  if (_checkinAttached || !_SESSION_ID) return;
+  _checkinAttached = true;
+  onChildAdded(ref(_db, `sessions/${_SESSION_ID}/checkins`), (snap) => {
+    if (window._importCheckin) window._importCheckin(snap.key, snap.val());
+  });
+}
+_attachCheckinListener();
 // Show share card whenever remote state loads
 window._onShareCardReady = function() {
   const lnk = window._getViewLink ? window._getViewLink() : '';
