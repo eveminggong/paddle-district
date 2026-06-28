@@ -98,6 +98,10 @@ header h1 {
   font-weight: 800;
   letter-spacing: 0.02em;
   flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .session-badge {
   font-size: 0.72rem;
@@ -1617,6 +1621,7 @@ function updateTabOffset() {
   const barH = barEl && !barEl.classList.contains('hidden') ? barEl.offsetHeight : 0;
   const bannerH = offlineBanner && offlineBanner.classList.contains('visible') ? offlineBanner.offsetHeight : 0;
   const totalH = headerH + barH + bannerH;
+  if (barEl && !barEl.classList.contains('hidden')) barEl.style.top = (headerH + bannerH) + 'px';
   if (tabs) tabs.style.top = totalH + 'px';
 }
 function startSession() {
